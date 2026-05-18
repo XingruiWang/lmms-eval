@@ -126,6 +126,7 @@ AVAILABLE_CHAT_TEMPLATE_MODELS = {
     "qwen3_omni_interleave": "Qwen3_OmniInterleave",
     "omnivinci_interleave": "OmniVinciInterleave",
     "baichuan_omni_interleave": "BaichuanOmniInterleave",
+    "minicpm_o_interleave": "MiniCPM_O_Interleave",
     "thyme": "Thyme",
     "openai": "OpenAICompatible",
     "vllm": "VLLM",
