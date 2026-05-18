@@ -33,6 +33,21 @@ No upstream lmms-eval model file was modified. All adaptations live in new
   `__embed_media_tokens`; a2v/t2v (4 vision options) OOM with dynamic_s2
   tiling and degenerate to empty output with fixed-tile resize.
 
+## Full benchmark (61,320 samples) — in progress
+
+Same `*_interleave` wrappers via `submit_full.sh` (10 modality combinations).
+Runs are QoS-serialized; this table is filled per model as runs complete and
+the matching `eval_logs/<model>/full/` is published to HF.
+
+| Config | Qwen2.5-Omni | Qwen3-Omni | Baichuan-Omni-1.5 | OmniVinci |
+|--------|------:|------:|------:|------:|
+| A→T | _running_ | _queued_ | _queued_ | _queued_ |
+| A→V | _running_ | _queued_ | _queued_ | n/a |
+| T→A | _running_ | _queued_ | _queued_ | n/a |
+| T→V | _running_ | _queued_ | _queued_ | n/a |
+| V→A | _running_ | _queued_ | _queued_ | n/a |
+| V→T | _running_ | _queued_ | _queued_ | _queued_ |
+
 ## Key fixes (all in `*_interleave` wrappers / launcher, not upstream)
 
 1. **Decode**: decode the full generated sequence and take the text after the
