@@ -48,6 +48,29 @@ the matching `eval_logs/<model>/full/` is published to HF.
 | V→A | _running_ | _queued_ | _queued_ | n/a |
 | V→T | _running_ | _queued_ | _queued_ | _queued_ |
 
+## Which models need an interleave wrapper?
+
+XModBench items carry media in the question stem **and** all 4 options.
+Whether a model needs a dedicated `*_interleave` wrapper depends solely on
+how its **stock** lmms-eval `simple` wrapper consumes `doc_to_visual`:
+
+| Model | Stock `generate_until` media handling | Needs `*_interleave`? |
+|-------|---------------------------------------|:---------------------:|
+| qwen2_5_omni | `visual = visuals[i]` (one per request) | **Yes** ✓ written |
+| qwen3_omni | `visual = visuals[i]` | **Yes** ✓ written |
+| baichuan_omni | `visual = visuals[i]` | **Yes** ✓ written |
+| omnivinci | `visual = visuals[i]` | **Yes** ✓ written |
+| minicpm_o | `visual = visuals[i]` | **Yes** ✓ written |
+| uni_moe_2_omni | `for visual in visual_list[i]` (iterates all) | **No** — run `uni_moe_2_omni` directly |
+| video_salmonn_2 | `for visual in visuals` (iterates all) | **No** — run `video_salmonn_2` directly |
+| audio_flamingo_3 | (non-standard; inspect before running) | TBD |
+| kimi_audio | (non-standard; inspect before running) | TBD |
+
+Rule of thumb: if the stock wrapper does `visuals[i]` it sees only the first
+media and needs the chat-style interleave variant; if it already loops over
+every element of the per-doc visual list it can be run as-is on XModBench
+(the task's `doc_to_visual` returns `[condition, optA..optD]`).
+
 ## Key fixes (all in `*_interleave` wrappers / launcher, not upstream)
 
 1. **Decode**: decode the full generated sequence and take the text after the
