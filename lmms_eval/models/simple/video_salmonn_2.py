@@ -1,3 +1,5 @@
+import os
+import sys
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -12,6 +14,48 @@ from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
+
+
+def _ensure_cuda_home() -> None:
+    """Make sure $CUDA_HOME points at a usable CUDA toolkit.
+
+    DeepSpeed's op builder (transitively imported by Qwen2.5-VL's video
+    pipeline) calls ``installed_cuda_version`` which reads
+    ``torch.utils.cpp_extension.CUDA_HOME``. If that's None it raises
+    ``MissingCUDAException("CUDA_HOME does not exist, unable to compile CUDA
+    op(s)")`` — which the broad try/except in ``generate_until`` catches,
+    silently producing an empty answer for every single request.
+
+    Symptom observed on XModBench Full: 61 320/61 320 items returned ``""``
+    while Lite (launched with CUDA_HOME exported) ran fine. Set CUDA_HOME to
+    the conda env that hosts python+nvcc if the caller forgot to.
+    """
+    if os.environ.get("CUDA_HOME"):
+        return
+    # Candidates in priority order. ``sys.prefix`` is the python env actually
+    # running this code (e.g. /home/x/.conda/envs/qwenomni3) and is the most
+    # reliable place to find a bundled nvcc. ``CONDA_PREFIX`` is sometimes the
+    # base conda install rather than the active env, so it's a weak second.
+    candidates = [sys.prefix, os.environ.get("CONDA_PREFIX"), "/usr/local/cuda", "/opt/cuda"]
+    for cand in candidates:
+        if cand and os.path.isfile(os.path.join(cand, "bin", "nvcc")):
+            os.environ["CUDA_HOME"] = cand
+            # torch caches CUDA_HOME at import; refresh it so downstream
+            # deepspeed/torch.utils.cpp_extension calls pick up the new value.
+            try:
+                import torch.utils.cpp_extension as _cppext  # noqa: WPS433
+                _cppext.CUDA_HOME = cand
+            except Exception:  # pragma: no cover - cppext may not be loaded yet
+                pass
+            eval_logger.info(f"video_salmonn_2: setting CUDA_HOME={cand} (was unset)")
+            return
+    eval_logger.warning(
+        "video_salmonn_2: CUDA_HOME is unset and no fallback nvcc was found; "
+        "DeepSpeed-backed kernels will fail and every generation will return ''."
+    )
+
+
+_ensure_cuda_home()
 
 PeftModel, _has_peft = optional_import("peft", "PeftModel")
 Qwen2_5_VLForConditionalGeneration, _ = optional_import("transformers", "Qwen2_5_VLForConditionalGeneration")

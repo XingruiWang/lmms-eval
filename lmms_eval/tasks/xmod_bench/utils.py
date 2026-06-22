@@ -82,10 +82,17 @@ def _family_and_subtask(category: str) -> tuple[str, str]:
     Handles two formats:
     - Path-style   : "01_perception/instruments"  → ("perception", "instruments")
     - Plain English: "Animal Sounds"              → ("perception", "finegrained")
+
+    Per-paper exception: emotion_classification lives under 05_Exteral/ in the
+    source data but the paper categorizes it as a linguistic task (paralinguistic
+    speech understanding), not knowledge.
     """
     if "/" in category:
         prefix, subtask = category.split("/", 1)
-        return _PATH_PREFIX_TO_FAMILY.get(prefix.lower(), "other"), subtask
+        fam = _PATH_PREFIX_TO_FAMILY.get(prefix.lower(), "other")
+        if subtask == "emotion_classification":
+            fam = "linguistic"
+        return fam, subtask
 
     cat_lower = category.lower()
     if cat_lower in _VGGSOUND_CATEGORIES:
@@ -141,7 +148,17 @@ def _load_media(input_path: str, modality: str):
     if mod == "image":
         return Image.open(abs_path).convert("RGB")
     elif mod == "audio":
-        array, sr = sf.read(abs_path, dtype="float32")
+        # Some upstream audio files are known to be corrupt — most famously
+        # GTZAN's `jazz.00054.wav` (corrupt since the original 2020 release,
+        # no RIFF header). soundfile raises LibsndfileError and crashes the
+        # whole eval run if not caught here; return a 1-sample silence so
+        # the eval continues, the affected item just records an empty answer.
+        try:
+            array, sr = sf.read(abs_path, dtype="float32")
+        except Exception as e:
+            import numpy as np
+            return {"array": np.zeros(16000, dtype="float32"), "sampling_rate": 16000,
+                    "_load_error": f"{type(e).__name__}: {str(e)[:120]}"}
         if array.ndim > 1:  # stereo → mono
             array = array.mean(axis=1)
         return {"array": array, "sampling_rate": sr}
